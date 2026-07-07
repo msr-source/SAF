@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAF (Kg-1)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&display=swap');
+
+  :root{
+    --paper: #FFFFFF;
+    --panel: #FFFFFF;
+    --ink: #000000;
+    --ink-soft: #6B6B6B;
+    --line: #000000;
+    --line-soft: #DADADA;
+
+    --c-adrenals: #E8291A;
+    --c-brain: #1155CC;
+    --c-stomach: #16A34A;
+    --c-kidneys: #9013C4;
+    --c-liver: #E0A400;
+    --c-lungs: #8B4726;
+    --c-pancreas: #E6197A;
+    --c-prostate: #00ACC1;
+    --c-spleen: #444444;
+    --c-bladder: #000000;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter', -apple-system, sans-serif;
+    min-height:100vh;
+  }
+
+  header{
+    padding:26px 32px 18px;
+    border-bottom:1px solid var(--line);
+    background:var(--panel);
+  }
+
+  header .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+  }
+
+  header h1{
+    font-family:'Source Serif 4', serif;
+    font-weight:600;
+    font-size:24px;
+    margin:0 0 6px;
+    letter-spacing:-0.01em;
+  }
+  header h1 sup{
+    font-size:0.6em;
+  }
+
+  header p{
+    margin:0;
+    color:var(--ink-soft);
+    font-size:13.5px;
+    max-width:760px;
+    line-height:1.5;
+  }
+
+  .layout{
+    display:grid;
+    grid-template-columns:270px 1fr 280px;
+    gap:0;
+    align-items:start;
+  }
+
+  @media (max-width: 980px){
+    .layout{ grid-template-columns:1fr; }
+  }
+
+  .sidebar, .readout-col{
+    padding:22px;
+    border-right:1px solid var(--line-soft);
+    min-height:calc(100vh - 100px);
+  }
+  .readout-col{ border-right:none; border-left:1px solid var(--line-soft); }
+
+  .field-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 8px;
+    display:flex;
+    justify-content:space-between;
+  }
+
+  select{
+    width:100%;
+    padding:9px 10px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    border:1px solid var(--line);
+    border-radius:0;
+    background:var(--panel);
+    color:var(--ink);
+    margin-bottom:22px;
+  }
+
+  select:disabled{ color:#B5B5B5; border-color:var(--line-soft); }
+
+  .toggle-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin-bottom:8px;
+  }
+  .toggle-row input{ accent-color:var(--ink); }
+
+  .note{
+    font-size:11px;
+    color:var(--ink-soft);
+    line-height:1.55;
+    margin-top:18px;
+    padding-top:14px;
+    border-top:1px solid var(--line-soft);
+  }
+  .note b{ color:var(--ink); }
+  .note code{ background:#F2F2F2; padding:1px 4px; }
+
+  .chart-col{ padding:22px; }
+  .chart-wrap{
+    background:var(--panel);
+    border:1px solid var(--line);
+    padding:18px 18px 6px;
+    position:relative;
+  }
+  .chart-wrap canvas{ cursor:crosshair; }
+
+  /* readout */
+  .readout{
+    font-family:'IBM Plex Mono', monospace;
+    background:var(--panel);
+    color:var(--ink);
+    border:1px solid var(--line);
+    padding:14px;
+    min-height:140px;
+  }
+  .readout .rline{
+    display:flex;
+    justify-content:space-between;
+    font-size:12.5px;
+    padding:5px 0;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .readout .rline:last-child{ border-bottom:none; }
+  .readout .rlabel{ color:var(--ink-soft); }
+  .readout .rval{ font-weight:600; }
+  .readout .rempty{
+    color:var(--ink-soft);
+    font-size:12px;
+    line-height:1.6;
+  }
+
+  .btn-download{
+    width:100%;
+    margin-top:18px;
+    padding:10px 0;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    background:var(--ink);
+    color:#fff;
+    border:1px solid var(--ink);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+  }
+  .btn-download:hover{ background:#fff; color:var(--ink); }
+  .btn-download svg{ width:13px; height:13px; }
+
+  .download-note{
+    font-size:10.5px;
+    color:var(--ink-soft);
+    margin-top:8px;
+    line-height:1.5;
+  }
+
+  .log-title{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:22px 0 8px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>SAF (Kg<sup>-1</sup>)</h1>
+  <p>Specific Absorbed Fractions (kg⁻¹) as a function of energy, for multiple target organs from a given source organ, phantom and particle type. Click a point on any curve to see the exact values.</p>
+</header>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="field-label">Phantom</div>
+    <select id="phantomSelect">
+      <option value="AM_mesh_145">Adult Male — ICRP 145 mesh</option>
+      <option value="AF_mesh_145" disabled>Adult Female — ICRP 145 mesh (no data loaded)</option>
+    </select>
+
+    <div class="field-label">Particle</div>
+    <select id="particleSelect">
+      <option value="photons">Photons</option>
+      <option value="electrons" disabled>Electrons (no data loaded)</option>
+    </select>
+
+    <div class="field-label">Source organ</div>
+    <select id="sourceSelect">
+      <option value="Liver">Liver</option>
+      <option value="Kidneys">Kidneys</option>
+      <option value="Lungs" disabled>Lungs — no data loaded</option>
+      <option value="Spleen" disabled>Spleen — no data loaded</option>
+    </select>
+
+    <div class="field-label">Target organ</div>
+    <select id="targetSelect"></select>
+
+    <div class="log-title" style="margin-top:22px;">Display</div>
+    <div class="toggle-row">
+      <input type="checkbox" id="showSD">
+      <label for="showSD">Show SD error bars</label>
+    </div>
+    <div class="toggle-row">
+      <input type="checkbox" id="showZero" checked>
+      <label for="showZero">Include null points (SAF = 0)</label>
+    </div>
+
+    <button class="btn-download" id="btnDownload">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+      Download spreadsheet (.xlsx)
+    </button>
+    <div class="download-note" id="downloadNote">Exports the selected target organ, all energies, for Liver — Adult Male ICRP 145 mesh, photons.</div>
+  </div>
+
+  <!-- CHART -->
+  <div class="chart-col">
+    <div class="chart-wrap">
+      <canvas id="safChart" height="120"></canvas>
+    </div>
+  </div>
+
+  <!-- READOUT -->
+  <div class="readout-col">
+    <div class="readout" id="readout">
+      <div class="rempty">Click a point on the chart to see Energy, SAF and SD here.</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ======================================================
+// DATA — Phantom: Adult Male, ICRP 145 mesh · Particle: Photons · Source: Liver
+// ======================================================
+const energy = [0.01,0.015,0.02,0.03,0.04,0.05,0.06,0.08,0.10,0.15,0.20,0.30,0.40,0.50,0.60,0.80,1.00,1.50,2.00,3.00,4.00,5.00];
+
+const curva1_sd = [1.13E-04,1.35E-04,1.30E-04,9.37E-05,6.95E-05,5.50E-05,4.47E-05,3.41E-05,2.82E-05,2.59E-05,2.52E-05,2.49E-05,2.70E-05,2.66E-05,2.63E-05,2.56E-05,2.46E-05,2.46E-05,2.28E-05,2.03E-05,1.86E-05,1.74E-05];
+
+// DATASETS[phantom][particle][source] = { target: {color, y} }
+const DATASETS = {
+  AM_mesh_145: {
+    photons: {
+      Liver: {
+        "Adrenals":   { color:'--c-adrenals',  y:[9.45E-03,2.87E-02,4.67E-02,5.97E-02,5.56E-02,4.91E-02,4.38E-02,3.75E-02,3.44E-02,3.18E-02,3.10E-02,3.03E-02,2.97E-02,2.92E-02,2.86E-02,2.76E-02,2.66E-02,2.44E-02,2.26E-02,2.01E-02,1.84E-02,1.72E-02] },
+        "Brain":      { color:'--c-brain',     y:[0,0,0,2.67E-07,6.01E-06,2.06E-05,3.68E-05,6.41E-05,8.29E-05,1.11E-04,1.32E-04,1.68E-04,1.97E-04,2.21E-04,2.43E-04,2.77E-04,3.03E-04,3.46E-04,3.68E-04,3.86E-04,3.89E-04,3.86E-04] },
+        "Stomach Wall": { color:'--c-stomach', y:[6.36E-03,2.01E-02,3.35E-02,4.47E-02,4.27E-02,3.81E-02,3.40E-02,2.91E-02,2.66E-02,2.44E-02,2.37E-02,2.32E-02,2.27E-02,2.24E-02,2.20E-02,2.12E-02,2.05E-02,1.88E-02,1.75E-02,1.56E-02,1.44E-02,1.35E-02] },
+        "Kidneys":    { color:'--c-kidneys',   y:[9.86E-04,5.09E-03,1.31E-02,2.69E-02,3.03E-02,2.90E-02,2.69E-02,2.35E-02,2.15E-02,1.95E-02,1.88E-02,1.81E-02,1.77E-02,1.74E-02,1.71E-02,1.65E-02,1.59E-02,1.47E-02,1.37E-02,1.22E-02,1.13E-02,1.06E-02] },
+        "Liver":      { color:'--c-liver',     y:[4.18E-01,3.97E-01,3.60E-01,2.67E-01,1.92E-01,1.46E-01,1.20E-01,9.50E-02,8.57E-02,8.00E-02,7.95E-02,7.95E-02,7.89E-02,7.80E-02,7.68E-02,7.42E-02,7.16E-02,6.54E-02,6.05E-02,5.34E-02,4.88E-02,4.56E-02] },
+        "Lungs":      { color:'--c-lungs',     y:[3.19E-03,9.32E-03,1.59E-02,2.29E-02,2.31E-02,2.12E-02,1.93E-02,1.67E-02,1.53E-02,1.40E-02,1.36E-02,1.32E-02,1.30E-02,1.28E-02,1.25E-02,1.21E-02,1.17E-02,1.08E-02,1.01E-02,9.03E-03,8.31E-03,7.80E-03] },
+        "Pancreas":   { color:'--c-pancreas',  y:[8.98E-04,7.26E-03,2.34E-02,5.58E-02,6.20E-02,5.76E-02,5.21E-02,4.43E-02,4.01E-02,3.59E-02,3.44E-02,3.31E-02,3.22E-02,3.15E-02,3.08E-02,2.95E-02,2.84E-02,2.60E-02,2.41E-02,2.15E-02,1.97E-02,1.84E-02] },
+        "Prostate":   { color:'--c-prostate',  y:[0,0,0,3.29E-07,1.18E-05,4.14E-05,7.51E-05,1.27E-04,1.71E-04,2.32E-04,2.62E-04,3.15E-04,3.57E-04,3.96E-04,4.21E-04,4.66E-04,5.01E-04,5.59E-04,5.77E-04,5.96E-04,5.86E-04,5.81E-04] },
+        "Spleen":     { color:'--c-spleen',    y:[0,2.94E-07,9.21E-05,2.44E-03,5.79E-03,7.63E-03,8.37E-03,8.50E-03,8.24E-03,7.67E-03,7.38E-03,7.12E-03,6.99E-03,6.88E-03,6.78E-03,6.61E-03,6.44E-03,6.06E-03,5.74E-03,5.24E-03,4.88E-03,4.61E-03] },
+        "Urinary Bladder Wall": { color:'--c-bladder', y:[0,0,0,7.67E-06,7.39E-05,1.84E-04,2.81E-04,4.09E-04,4.80E-04,5.55E-04,5.96E-04,6.62E-04,7.15E-04,7.60E-04,7.95E-04,8.49E-04,8.83E-04,9.30E-04,9.43E-04,9.34E-04,9.10E-04,8.87E-04] },
+      },
+      // DEMO: novo órgão-fonte de exemplo — troque pelos valores reais
+      //Kidneys: {
+       // "Liver": { color:'#E0A400', y:[
+       //   8.50E-04,4.20E-03,1.10E-02,2.30E-02,2.60E-02,2.50E-02,2.30E-02,2.00E-02,
+       //   1.85E-02,1.68E-02,1.62E-02,1.56E-02,1.53E-02,1.50E-02,1.48E-02,1.43E-02,
+       //   1.38E-02,1.28E-02,1.19E-02,1.06E-02,9.80E-03,9.20E-03
+       // ], sd:[
+        //  9.00E-06,1.80E-05,2.60E-05,3.10E-05,3.00E-05,2.80E-05,2.60E-05,2.30E-05,
+       //   2.10E-05,1.95E-05,1.88E-05,1.82E-05,1.78E-05,1.75E-05,1.72E-05,1.68E-05,
+       //   1.63E-05,1.52E-05,1.42E-05,1.28E-05,1.19E-05,1.12E-05
+       // ] },
+      //  "Adrenals": { color:'#E8291A', y:[
+       //   1.20E-02,3.10E-02,4.60E-02,5.30E-02,4.90E-02,4.30E-02,3.80E-02,3.20E-02,
+       //   2.90E-02,2.65E-02,2.58E-02,2.52E-02,2.48E-02,2.44E-02,2.40E-02,2.32E-02,
+       //   2.24E-02,2.06E-02,1.92E-02,1.71E-02,1.57E-02,1.47E-02
+      //  ], sd:[
+       //   1.30E-04,1.20E-04,9.80E-05,7.90E-05,6.60E-05,5.60E-05,4.80E-05,4.00E-05,
+      //    3.60E-05,3.30E-05,3.20E-05,3.13E-05,3.08E-05,3.03E-05,2.98E-05,2.88E-05,
+      //    2.78E-05,2.56E-05,2.38E-05,2.12E-05,1.95E-05,1.83E-05
+      //  ] }
+      // }
+    }
+  }
+};
+
+const PHANTOM_LABELS = {
+  AM_mesh_145: 'Adult Male — ICRP 145 mesh',
+  AF_mesh_145: 'Adult Female — ICRP 145 mesh'
+};
+const PARTICLE_LABELS = {
+  photons: 'Photons',
+  electrons: 'Electrons'
+};
+
+// ============================================================================
+// HOW TO ADD NEW DATA
+// ============================================================================
+// DATASETS is organized as: DATASETS[phantomKey][particleKey][sourceOrgan]
+// Each target organ entry looks like:
+//
+//   "TargetName": { color:'#RRGGBB', y:[ ...22 SAF values... ], sd:[ ...22 SD values... ] }
+//
+// - "y" and "sd" must each have exactly 22 values, in the same order as the
+//   `energy` array defined above (0.01 MeV to 5.00 MeV).
+// - "color" can be any hex color, e.g. '#1155CC'.
+// - If you don't have a real SD for a new organ yet, you can omit "sd" —
+//   it will automatically fall back to the shared curva1_sd placeholder.
+//
+// ----------------------------------------------------------------------------
+// EXAMPLE — adding a new target organ ("Heart") to an EXISTING
+// phantom/particle/source (Adult Male mesh, photons, Liver):
+// just add a new line inside DATASETS.AM_mesh_145.photons.Liver, e.g.:
+//
+//   "Heart": { color:'#1155CC', y:[
+//     1.00E-03,1.50E-03,2.00E-03,2.50E-03,3.00E-03,3.20E-03,3.40E-03,3.60E-03,
+//     3.80E-03,4.00E-03,4.10E-03,4.20E-03,4.30E-03,4.35E-03,4.40E-03,4.45E-03,
+//     4.50E-03,4.55E-03,4.58E-03,4.60E-03,4.62E-03,4.64E-03
+//   ], sd:[
+//     1.10E-05,1.20E-05,1.15E-05,1.05E-05,9.50E-06,8.80E-06,8.20E-06,7.60E-06,
+//     7.10E-06,6.70E-06,6.40E-06,6.20E-06,6.00E-06,5.90E-06,5.80E-06,5.70E-06,
+//     5.60E-06,5.50E-06,5.45E-06,5.40E-06,5.35E-06,5.30E-06
+//   ] },
+//
+// ----------------------------------------------------------------------------
+// EXAMPLE — adding a whole NEW source organ, particle type, or phantom that
+// doesn't exist yet (e.g. Kidneys as a source, still Adult Male mesh, photons):
+//
+//   DATASETS.AM_mesh_145.photons.Kidneys = {
+//     "Adrenals": { color:'#E8291A', y:[ /* 22 values */ ], sd:[ /* 22 values */ ] },
+//     "Liver":    { color:'#E0A400', y:[ /* 22 values */ ], sd:[ /* 22 values */ ] },
+//     // ...more target organs
+//   };
+//
+// For a brand new phantom or particle type, add it as a new key at the
+// matching level of DATASETS, and register its label:
+//
+//   DATASETS.AF_mesh_145 = { photons: { Liver: { /* target organs */ } } };
+//   PHANTOM_LABELS.AF_mesh_145 = 'Adult Female — ICRP 145 mesh';
+//
+//   DATASETS.AM_mesh_145.electrons = { Liver: { /* target organs */ } };
+//   PARTICLE_LABELS.electrons = 'Electrons';
+//
+// Also remember to enable the matching <option> in the HTML <select> elements
+// (phantomSelect / particleSelect / sourceSelect) by removing "disabled".
+// ============================================================================
+
+// ============================================================================
+// COMO ADICIONAR NOVOS DADOS (PT-BR)
+// ============================================================================
+// O DATASETS é organizado assim: DATASETS[phantomKey][particleKey][orgaoFonte]
+// Cada entrada de órgão-alvo tem este formato:
+//
+//   "NomeDoAlvo": { color:'#RRGGBB', y:[ ...22 valores de SAF... ], sd:[ ...22 valores de SD... ] }
+//
+// - "y" e "sd" precisam ter exatamente 22 valores cada, na mesma ordem do
+//   array `energy` definido no topo do script (0.01 MeV até 5.00 MeV).
+// - "color" pode ser qualquer cor em hexadecimal, ex: '#1155CC'.
+// - Se você ainda não tiver o SD real de um órgão novo, pode omitir "sd" —
+//   nesse caso ele usa automaticamente o array curva1_sd como placeholder.
+//
+// ----------------------------------------------------------------------------
+// EXEMPLO — adicionando um novo órgão-alvo ("Heart") a um phantom/partícula/
+// fonte que JÁ EXISTE (Adult Male mesh, photons, Liver):
+// basta adicionar uma nova linha dentro de DATASETS.AM_mesh_145.photons.Liver:
+//
+//   "Heart": { color:'#1155CC', y:[
+//     1.00E-03,1.50E-03,2.00E-03,2.50E-03,3.00E-03,3.20E-03,3.40E-03,3.60E-03,
+//     3.80E-03,4.00E-03,4.10E-03,4.20E-03,4.30E-03,4.35E-03,4.40E-03,4.45E-03,
+//     4.50E-03,4.55E-03,4.58E-03,4.60E-03,4.62E-03,4.64E-03
+//   ], sd:[
+//     1.10E-05,1.20E-05,1.15E-05,1.05E-05,9.50E-06,8.80E-06,8.20E-06,7.60E-06,
+//     7.10E-06,6.70E-06,6.40E-06,6.20E-06,6.00E-06,5.90E-06,5.80E-06,5.70E-06,
+//     5.60E-06,5.50E-06,5.45E-06,5.40E-06,5.35E-06,5.30E-06
+//   ] },
+//
+// ----------------------------------------------------------------------------
+// EXEMPLO — adicionando um órgão-fonte, tipo de partícula ou phantom
+// totalmente NOVOS (ex: Kidneys como fonte, ainda no Adult Male mesh, photons):
+//
+//   DATASETS.AM_mesh_145.photons.Kidneys = {
+//     "Adrenals": { color:'#E8291A', y:[ /* 22 valores */ ], sd:[ /* 22 valores */ ] },
+//     "Liver":    { color:'#E0A400', y:[ /* 22 valores */ ], sd:[ /* 22 valores */ ] },
+//     // ...mais órgãos-alvo
+//   };
+//
+// Para um phantom ou tipo de partícula totalmente novo, adicione-o como uma
+// nova chave no nível correspondente do DATASETS, e registre o rótulo (label):
+//
+//   DATASETS.AF_mesh_145 = { photons: { Liver: { /* órgãos-alvo */ } } };
+//   PHANTOM_LABELS.AF_mesh_145 = 'Adult Female — ICRP 145 mesh';
+//
+//   DATASETS.AM_mesh_145.electrons = { Liver: { /* órgãos-alvo */ } };
+//   PARTICLE_LABELS.electrons = 'Electrons';
+//
+// Não esqueça de habilitar a <option> correspondente nos <select> do HTML
+// (phantomSelect / particleSelect / sourceSelect), removendo o "disabled".
+// ============================================================================
+
+function cssVar(name){
+  if(!name) return '#000';
+  if(name.startsWith('#')) return name;
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+let currentPhantom = 'AM_mesh_145';
+let currentParticle = 'photons';
+let currentSource = 'Liver';
+let currentTarget = null;
+
+function currentOrganSet(){
+  return DATASETS[currentPhantom]?.[currentParticle]?.[currentSource] || {};
+}
+function currentOrgans(){
+  return Object.keys(currentOrganSet());
+}
+
+let showSD = false;
+let showZero = true;
+
+// ---------- target organ dropdown ----------
+const targetSelect = document.getElementById('targetSelect');
+
+function rebuildTargetSelect(){
+  const organs = currentOrgans();
+  targetSelect.innerHTML = organs.map(name => `<option value="${name}">${name}</option>`).join('');
+  currentTarget = organs.includes(currentTarget) ? currentTarget : organs[0];
+  targetSelect.value = currentTarget;
+}
+
+function updateDownloadNote(){
+  const note = document.getElementById('downloadNote');
+  if(note){
+    note.innerHTML = `Exports <b>${currentTarget}</b>, all energies, for ${currentSource} — ${PHANTOM_LABELS[currentPhantom]}, ${PARTICLE_LABELS[currentParticle]}.`;
+  }
+}
+
+targetSelect.addEventListener('change', (e) => {
+  currentTarget = e.target.value;
+  updateDownloadNote();
+  rebuildChart();
+});
+
+document.getElementById('showSD').addEventListener('change', (e) => {
+  showSD = e.target.checked;
+  rebuildChart();
+});
+document.getElementById('showZero').addEventListener('change', (e) => {
+  showZero = e.target.checked;
+  rebuildChart();
+});
+
+// ---------- chart ----------
+const ctx = document.getElementById('safChart').getContext('2d');
+let chart;
+
+function buildDatasets(){
+  const organs = currentOrganSet();
+  if(!currentTarget || !organs[currentTarget]) return [];
+  const name = currentTarget;
+  const entry = organs[name];
+  const color = cssVar(entry.color);
+  const points = energy.map((e, i) => {
+    const val = entry.y[i];
+    const sdArr = entry.sd || curva1_sd;
+    if (val === 0 && !showZero) return {x: e, y: null};
+    return {x: e, y: val === 0 ? null : val, _raw: val, _organ: name, _sd: sdArr[i]};
+  });
+  return [{
+    label: name,
+    data: points,
+    borderColor: color,
+    backgroundColor: '#fff',
+    pointBackgroundColor: '#fff',
+    pointBorderColor: color,
+    pointBorderWidth: 1.6,
+    pointRadius: 4.5,
+    pointHoverRadius: 7,
+    borderWidth: 1.8,
+    spanGaps: true,
+    tension: 0
+  }];
+}
+
+// Custom plugin: draws SD error bars manually (Chart.js has no built-in log-scale error bars)
+const errorBarPlugin = {
+  id: 'errorBarPlugin',
+  afterDatasetsDraw(c){
+    if(!showSD) return;
+    const {ctx} = c;
+    c.data.datasets.forEach((dataset, dsIndex) => {
+      const meta = c.getDatasetMeta(dsIndex);
+      meta.data.forEach((pointEl, i) => {
+        const raw = dataset.data[i];
+        if(!raw || raw._raw === undefined || raw._raw === null || raw._raw === 0) return;
+        const sd = raw._sd;
+        const yScale = c.scales.y;
+        const xPix = pointEl.x;
+        const upperVal = raw._raw + sd;
+        const lowerVal = Math.max(raw._raw - sd, raw._raw * 0.02); // clamp above 0 for log scale
+        const area = c.chartArea;
+        let yUpper = yScale.getPixelForValue(upperVal);
+        let yLower = yScale.getPixelForValue(lowerVal);
+        // clip whiskers to the plotted grid area instead of overflowing past it
+        yUpper = Math.max(yUpper, area.top);
+        yLower = Math.min(yLower, area.bottom);
+        ctx.save();
+        ctx.strokeStyle = dataset.borderColor;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(xPix, yUpper);
+        ctx.lineTo(xPix, yLower);
+        ctx.moveTo(xPix - 4, yUpper); ctx.lineTo(xPix + 4, yUpper);
+        ctx.moveTo(xPix - 4, yLower); ctx.lineTo(xPix + 4, yLower);
+        ctx.stroke();
+        ctx.restore();
+      });
+    });
+  }
+};
+Chart.register(errorBarPlugin);
+
+function rebuildChart(){
+  const datasets = buildDatasets();
+  if(chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      aspectRatio: 1.55,
+      parsing: false,
+      animation: { duration: 300 },
+      scales: {
+        x: {
+          type: 'logarithmic',
+          min: 0.009,
+          max: 5.5,
+          title: { display:true, text:'Energy (MeV)', color:'#000', font:{family:"'Times New Roman', Times, serif", size:15} },
+          grid: { color:'#D8D8D8' },
+          ticks: { color:'#000', font:{family:"'Times New Roman', Times, serif", size:12} }
+        },
+        y: {
+          type: 'logarithmic',
+          title: { display:true, text:'SAF (kg⁻¹)', color:'#000', font:{family:"'Times New Roman', Times, serif", size:15} },
+          grid: { color:'#D8D8D8' },
+          ticks: { color:'#000', font:{family:"'Times New Roman', Times, serif", size:12} }
+        }
+      },
+      plugins: {
+        legend: {
+          position:'bottom',
+          labels:{ color:'#000', font:{family:"'Times New Roman', Times, serif", size:13}, boxWidth:14, boxHeight:14, padding:14 }
+        },
+        tooltip: {
+          enabled:true,
+          titleFont:{family:"'Times New Roman', Times, serif"},
+          bodyFont:{family:"'Times New Roman', Times, serif"},
+          callbacks: {
+            label: (item) => {
+              const p = item.raw;
+              if(p._raw === undefined || p._raw === null) return '';
+              return `${p._organ}: ${p._raw.toExponential(3)} kg⁻¹ @ ${item.parsed.x} MeV`;
+            }
+          }
+        }
+      },
+      onClick: (evt) => {
+        const points = chart.getElementsAtEventForMode(evt, 'nearest', {intersect:true}, true);
+        if(!points.length) return;
+        const p = points[0];
+        const ds = chart.data.datasets[p.datasetIndex];
+        const raw = ds.data[p.index];
+        if(raw._raw === undefined || raw._raw === null) return;
+        showReadout(currentSource, raw._organ, raw.x, raw._raw, raw._sd);
+      }
+    }
+  });
+}
+
+function showReadout(source, target, e, saf, sd){
+  const pct = saf > 0 ? ((sd/saf)*100).toFixed(2) : '—';
+  const safStr = saf === 0 ? '0 (null / not simulated)' : saf.toExponential(4);
+  document.getElementById('readout').innerHTML = `
+    <div class="rline"><span class="rlabel">PARTICLE</span><span class="rval">${PARTICLE_LABELS[currentParticle]}</span></div>
+    <div class="rline"><span class="rlabel">SOURCE</span><span class="rval">${source}</span></div>
+    <div class="rline"><span class="rlabel">TARGET</span><span class="rval">${target}</span></div>
+    <div class="rline"><span class="rlabel">ENERGY</span><span class="rval">${e} MeV</span></div>
+    <div class="rline"><span class="rlabel">SAF</span><span class="rval">${safStr} kg⁻¹</span></div>
+    <div class="rline"><span class="rlabel">SD</span><span class="rval">${sd.toExponential(2)}</span></div>
+    <div class="rline"><span class="rlabel">%SD</span><span class="rval">${pct}%</span></div>
+  `;
+}
+
+document.getElementById('phantomSelect').addEventListener('change', (e) => {
+  currentPhantom = e.target.value;
+  rebuildTargetSelect();
+  updateDownloadNote();
+  rebuildChart();
+});
+document.getElementById('particleSelect').addEventListener('change', (e) => {
+  currentParticle = e.target.value;
+  rebuildTargetSelect();
+  updateDownloadNote();
+  rebuildChart();
+});
+document.getElementById('sourceSelect').addEventListener('change', (e) => {
+  currentSource = e.target.value;
+  rebuildTargetSelect();
+  updateDownloadNote();
+  rebuildChart();
+});
+
+// ---------- xlsx export ----------
+function downloadSelection(){
+  const organs = currentOrganSet();
+  if(!currentTarget || !organs[currentTarget]){
+    alert('Select a target organ before downloading.');
+    return;
+  }
+
+  const header = ['Phantom', 'Particle', 'Source', 'Target', 'Energy (MeV)', 'SAF (kg-1)', 'SD', '%SD'];
+  const rows = [header];
+
+  const entry = organs[currentTarget];
+  const sdArr = entry.sd || curva1_sd;
+  energy.forEach((e, i) => {
+    const saf = entry.y[i];
+    if(saf === 0 && !showZero) return;
+    const sd = sdArr[i];
+    const pct = saf > 0 ? Number(((sd / saf) * 100).toFixed(2)) : '';
+    rows.push([PHANTOM_LABELS[currentPhantom], PARTICLE_LABELS[currentParticle], currentSource, currentTarget, e, saf, sd, pct]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:24}, {wch:11}, {wch:10}, {wch:22}, {wch:13}, {wch:14}, {wch:12}, {wch:8}];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `SAF_${currentSource}`.slice(0,31));
+
+  const dateStr = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `SAF_${currentPhantom}_${currentParticle}_${currentSource}_${currentTarget}_${dateStr}.xlsx`);
+}
+
+document.getElementById('btnDownload').addEventListener('click', downloadSelection);
+
+rebuildTargetSelect();
+updateDownloadNote();
+rebuildChart();
+
+
+</script>
+</body>
+</html>
